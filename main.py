@@ -16,8 +16,8 @@ def main():
     args = parser.parse_args()
 
     # Load data
-    data_file = "data/plume2d.npz"
-    train_loader, test_loader = data_loader.load(data_file)
+    data_file = "data\\plume2d"
+    train_loader, test_loader = data_loader.load(data_file, args.batch_size)
 
     # Initialize model
     unet_model = model.UNet()
@@ -27,7 +27,7 @@ def main():
 
     torch.save({
         'epoch': args.epoch,
-        'model_state_dict': model.state_dict(),
+        'model_state_dict': trained_model.state_dict(),
         'loss': 0.0008 # Dummy loss value for example TODO: replace with actual loss
     }, f"unet_model_epoch_{args.epoch}.pth")
 

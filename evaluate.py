@@ -4,25 +4,38 @@ import matplotlib.pyplot as plt
 import argparse
 
 import trainer
+import data_loader
+import model
+
+import time 
 
 def test_fluid_simulation_model(model, test_loader, device=None):
     device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device).eval()
-
     all_predictions, all_targets = [], []
     total_loss = 0.0
+    total_time = 0.0  # Track total prediction time
+    total_frames = 0  # Track total number of frames processed
     
     with torch.no_grad():
         for batch_inputs, batch_targets in test_loader:
             batch_inputs, batch_targets = batch_inputs.to(device), batch_targets.to(device)
-
-            # Forward pass
+            # Count frames in this batch (first dimension is batch size)
+            batch_size = batch_inputs.size(0)
+            total_frames += batch_size
+            
+            # Measure time before prediction
+            start_time = time.time()
+            # Forward pass (prediction)
             predictions = model(batch_inputs)
-
+            # Measure time after prediction
+            elapsed_time = time.time() - start_time
+            total_time += elapsed_time  # Accumulate total time
+            
             # Compute loss (ensure `fluid_simulation_loss` is defined)
             batch_loss = trainer.fluid_simulation_loss(predictions, batch_targets)
             total_loss += batch_loss.item()
-
+            
             # Store results
             all_predictions.append(predictions.cpu().numpy())
             all_targets.append(batch_targets.cpu().numpy())
@@ -30,10 +43,20 @@ def test_fluid_simulation_model(model, test_loader, device=None):
     # Concatenate predictions and targets
     all_predictions = np.concatenate(all_predictions, axis=0)  # Shape: (N, 2, H, W)
     all_targets = np.concatenate(all_targets, axis=0)  # Shape: (N, 2, H, W)
-
+    
     # Compute evaluation metrics
     metrics_dict = compute_fluid_metrics(all_predictions, all_targets)
     metrics_dict['average_loss'] = total_loss / len(test_loader)
+    
+    # Compute average time per batch and per frame
+    metrics_dict['total_prediction_time'] = total_time
+    metrics_dict['average_time_per_batch'] = total_time / len(test_loader)
+    metrics_dict['average_time_per_frame'] = total_time / total_frames
+    
+    print(f"\nTotal Prediction Time: {total_time:.4f} seconds")
+    print(f"Average Time per Batch: {metrics_dict['average_time_per_batch']:.4f} seconds")
+    print(f"Average Time per Frame: {metrics_dict['average_time_per_frame']:.4f} seconds")
+    print(f"Total Frames Processed: {total_frames}")
     
     return metrics_dict, all_predictions, all_targets
 
@@ -44,51 +67,42 @@ def compute_velocity_magnitude(velocity_field):
 def visualize_velocity_predictions(predictions, targets, n_samples=5):
     n_samples = min(n_samples, len(predictions))
 
-    fig, axes = plt.subplots(n_samples, 3, figsize=(12, 3 * n_samples))
+    fig, axes = plt.subplots(2, 3, figsize=(12, 3 * n_samples))
+    i = 100
 
-    for i in range(n_samples):
-        pred_magnitude = compute_velocity_magnitude(predictions[i])
-        print(pred_magnitude.shape)
-        # X-Velocity Component
-        axes[i, 0].imshow(predictions[i, 0], cmap='coolwarm', origin="lower", interpolation="bilinear")
-        axes[i, 0].set_title(f'Predicted vx (Sample {i+1})')
-        axes[i, 0].axis("off")
-        
-        # Y-Velocity Component
-        axes[i, 1].imshow(predictions[i, 1], cmap='coolwarm', origin="lower", interpolation="bilinear")
-        axes[i, 1].set_title(f'Predicted vy (Sample {i+1})')
-        axes[i, 1].axis("off")
-        
-        # Velocity Magnitude
-        axes[i, 2].imshow(pred_magnitude, cmap='viridis', origin="lower", interpolation="bilinear")
-        axes[i, 2].set_title(f'Predicted Velocity Magnitude (Sample {i+1})')
-        axes[i, 2].axis("off")
+    pred_magnitude = compute_velocity_magnitude(predictions[i])
+    # X-Velocity Component
+    axes[0, 0].imshow(predictions[i, 0], cmap='coolwarm', origin="lower", interpolation="bilinear")
+    axes[0, 0].set_title(f'Predicted vx (Sample {i+1})')
+    axes[0, 0].axis("off")
     
-    plt.tight_layout()
-    plt.show()
+    # Y-Velocity Component
+    axes[0, 1].imshow(predictions[i, 1], cmap='coolwarm', origin="lower", interpolation="bilinear")
+    axes[0, 1].set_title(f'Predicted vy (Sample {i+1})')
+    axes[0, 1].axis("off")
     
-    # Ground truth
-    fig, axes = plt.subplots(n_samples, 3, figsize=(12, 3 * n_samples))
+    # Velocity Magnitude
+    axes[0, 2].imshow(pred_magnitude, cmap='viridis', origin="lower", interpolation="bilinear")
+    axes[0, 2].set_title(f'Predicted Velocity Magnitude (Sample {i+1})')
+    axes[0, 2].axis("off")
+    
+    target_magnitude = compute_velocity_magnitude(targets[i])
+    # X-Velocity Component
+    axes[1, 0].imshow(targets[i, 0], cmap='coolwarm', origin="lower", interpolation="bilinear")
+    axes[1, 0].set_title(f'Target vx (Sample {i+1})')
+    axes[1, 0].axis("off")
 
-    for i in range(n_samples):
-        target_magnitude = compute_velocity_magnitude(targets[i])
+    # Y-Velocity Component
+    axes[1, 1].imshow(targets[i, 1], cmap='coolwarm', origin="lower", interpolation="bilinear")
+    axes[1, 1].set_title(f'Target vy (Sample {i+1})')
+    axes[1, 1].axis("off")
 
-        # X-Velocity Component
-        axes[i, 0].imshow(targets[i, 0], cmap='coolwarm', origin="lower", interpolation="bilinear")
-        axes[i, 0].set_title(f'Target vx (Sample {i+1})')
-        axes[i, 0].axis("off")
+    # Velocity Magnitude
+    axes[1, 2].imshow(target_magnitude, cmap='viridis', origin="lower", interpolation="bilinear")
+    axes[1, 2].set_title(f'Target Velocity Magnitude (Sample {i+1})')
+    axes[1, 2].axis("off")
 
-        # Y-Velocity Component
-        axes[i, 1].imshow(targets[i, 1], cmap='coolwarm', origin="lower", interpolation="bilinear")
-        axes[i, 1].set_title(f'Target vy (Sample {i+1})')
-        axes[i, 1].axis("off")
-
-        # Velocity Magnitude
-        axes[i, 2].imshow(target_magnitude, cmap='viridis', origin="lower", interpolation="bilinear")
-        axes[i, 2].set_title(f'Target Velocity Magnitude (Sample {i+1})')
-        axes[i, 2].axis("off")
-
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.show()
 
 def compute_fluid_metrics(predictions, targets):
@@ -115,7 +129,7 @@ def compute_fluid_metrics(predictions, targets):
 
     return metrics_dict
 
-def run_model_testing(model, test_loader, visialize=True):
+def run_model_testing(model, test_loader, visualize=True):
     # Run testing
     metrics_dict, predictions, targets = test_fluid_simulation_model(model, test_loader)
 
@@ -132,10 +146,22 @@ def run_model_testing(model, test_loader, visialize=True):
 def evaluate_model(model_path, test_loader):
     # Load model
     checkpoint = torch.load(model_path)
-    model = trainer.UNet()  # Ensure this matches your model architecture
-    model.load_state_dict(checkpoint['model_state_dict'])
+    loaded_model = model.UNet()
+    loaded_model.load_state_dict(checkpoint['model_state_dict'])
 
     # Run testing and visualization
-    metrics_dict, predictions, targets = run_model_testing(model, test_loader, visialize=False)
+    metrics_dict, predictions, targets = run_model_testing(loaded_model, test_loader, visualize=False)
 
     return metrics_dict, predictions, targets
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-m", "--model", help = "Model file path", type = str, required=True)
+    parser.add_argument("-d", "--data", help = "Set dataset directory", type = str, required=True)
+
+    args = parser.parse_args()
+
+    _, test_loader = data_loader.load(args.data)
+
+    evaluate_model(args.model, test_loader)

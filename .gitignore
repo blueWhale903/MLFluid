@@ -1,2 +1,10 @@
 __pycache__
 data
+models
+
+# Ignore temporary files
+*.log
+*.tmp
+*.npy
+*.npz
+*.pth
