@@ -20,7 +20,7 @@ def fluid_simulation_loss(predicted, target):
     pred_grads = compute_gradients(predicted)
     target_grads = compute_gradients(target)
     
-    gradient_loss = sum([F.mse_loss(pg, tg) for pg, tg in zip(pred_grads, target_grads)])
+    gradient_loss = sum([F.mse_loss(pg, tg) for pg, tg in zip(pred_grads, target_grads)]) / len(pred_grads)
     
     # Divergence loss with physics constraints
     def divergence_loss(velocity_field):
@@ -29,7 +29,7 @@ def fluid_simulation_loss(predicted, target):
         div_y = torch.gradient(velocity_field[1])[1]
         return torch.mean((div_x + div_y)**2)
     
-    div_loss = divergence_loss(predicted)
+    div_loss = divergence_loss(predicted) / 10
     
     # Composite loss with adaptive weighting
     total_loss = (
@@ -59,9 +59,8 @@ def train_fluid_simulation_model(
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
     # Learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5, verbose=verbose
-    )
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.5)  # Reduce LR every 3 epochs
+
     
     # Training loop
     for epoch in range(epochs):
