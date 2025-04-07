@@ -113,7 +113,7 @@ def train_fluid_simulation_model(
         avg_epoch_loss = total_loss / len(dataloader)
         
         # Learning rate scheduling
-        scheduler.step(avg_epoch_loss)
+        scheduler.step()
         
         # Epoch progress summary
         if verbose:

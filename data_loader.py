@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 import os
+import matplotlib.pyplot as plt
 
 class FluidDataset(torch.utils.data.Dataset):
     def __init__(self, density, velocity, inflow=None, obstacle=None, normalize=True):
@@ -42,9 +43,6 @@ class FluidDataset(torch.utils.data.Dataset):
         density_input = self.density[idx + self.time_steps - 1]  # (1, H, W)
         velocity_input = self.velocity[idx + self.time_steps - 1]  # (2, H, W)
 
-        # Reshape density to match (1, H, W)
-        density_input = density_input.unsqueeze(0)  # Shape: (1, 128, 96)
-        # Reshape velocity to match (2, H, W)
         velocity_input = velocity_input.permute(2, 0, 1)  # Shape: (2, 128, 96)
 
         # Normalize if needed
@@ -96,15 +94,14 @@ def load(data_dir, batch_size=16):
     test_densities = np.concatenate(np.array(test_densities), axis=0)
     test_velocities = np.concatenate(np.array(test_velocities), axis=0)
 
-    # Concatenate all data along the first dimension
-    train_densities = np.concatenate(train_densities, axis=0)  # (Total_N, 1, 128, 96)
-    train_velocities = np.concatenate(train_velocities, axis=0)  # (Total_N, 3, 128, 96)
-    test_densities = np.concatenate(test_densities, axis=0)  # (Total_N, 1, 128, 96)
-    test_velocities = np.concatenate(test_velocities, axis=0)  # (Total_N, 3, 128, 96)
+    train_velocities = np.concatenate(train_velocities, axis=0)
+    test_velocities = np.concatenate(test_velocities, axis=0)
 
-    # Keep only the first 2 velocity channels (vx, vy)
-    train_velocities = train_velocities[:, :, :, :2]  # (Total_N, 2, 128, 96)
-    test_velocities = test_velocities[:, :, :, :2]  # (Total_N, 2, 128, 96)
+    max_z_velocity = np.max(train_velocities[0, ..., 2])
+    if max_z_velocity == 0.0:
+        # Keep only the first 2 velocity channels (vx, vy)
+        train_velocities = train_velocities[..., :2]  # (Total_N, 2, 128, 96)
+        test_velocities = test_velocities[..., :2]  # (Total_N, 2, 128, 96)
 
     # Create dataset
     train_dataset = FluidDataset(train_densities, train_velocities)
@@ -115,3 +112,38 @@ def load(data_dir, batch_size=16):
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
+
+def visualize_2d_sample(sample):
+    """ Visualize density, velocity, and pressure for a single sample """
+    
+    # Extract individual components
+    velocity_x = sample[0].cpu().numpy()
+    velocity_y = sample[1].cpu().numpy()
+    density = sample[2].cpu().numpy()
+
+    H, W = density.shape
+    X, Y = np.meshgrid(np.arange(W), np.arange(H))
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+
+    # Density Heatmap
+    axes[0].imshow(density, cmap="inferno", origin="lower")
+    axes[0].set_title("Density Heatmap")
+
+    # Velocity Field (Quiver Plot)
+    axes[1].quiver(X, Y, velocity_x, velocity_y, color='cyan')
+    axes[1].set_title("Velocity Field")
+
+    for ax in axes:
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    plt.show()
+
+if __name__ == "__main__":
+    data_file = "data\\plume2d"
+    train_loader, test_loader = load(data_file, 16)
+    
+    train_iter = iter(train_loader)
+    sample, _ = next(train_iter)
+    visualize_2d_sample(sample[0])
