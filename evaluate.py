@@ -18,12 +18,14 @@ def test_fluid_simulation_model(model, test_loader, device=None):
     total_frames = 0  # Track total number of frames processed
     
     with torch.no_grad():
-        for batch_inputs, batch_targets in test_loader:
+        prev_velocity = None  # Initialize prev_velocity as None
+
+        for batch_idx, (batch_inputs, batch_targets) in enumerate(test_loader):
             batch_inputs, batch_targets = batch_inputs.to(device), batch_targets.to(device)
             # Count frames in this batch (first dimension is batch size)
             batch_size = batch_inputs.size(0)
             total_frames += batch_size
-            
+
             # Measure time before prediction
             start_time = time.time()
             # Forward pass (prediction)
@@ -31,14 +33,21 @@ def test_fluid_simulation_model(model, test_loader, device=None):
             # Measure time after prediction
             elapsed_time = time.time() - start_time
             total_time += elapsed_time  # Accumulate total time
-            
-            # Compute loss (ensure `fluid_simulation_loss` is defined)
-            batch_loss = trainer.fluid_simulation_loss(predictions, batch_targets)
+
+            # Initialize prev_velocity for the first batch
+            prev_velocity = torch.zeros_like(batch_targets) if batch_idx == 0 else prev_velocity[:batch_targets.size(0)]
+
+            # Compute loss using prev_velocity
+            batch_loss = trainer.fluid_simulation_loss(predictions, batch_targets, prev_velocity)
             total_loss += batch_loss.item()
-            
+
+            # Update prev_velocity for the next batch
+            prev_velocity = predictions.detach()
+
             # Store results
             all_predictions.append(predictions.cpu().numpy())
             all_targets.append(batch_targets.cpu().numpy())
+
     
     # Concatenate predictions and targets
     all_predictions = np.concatenate(all_predictions, axis=0)  # Shape: (N, 2, H, W)
@@ -52,12 +61,7 @@ def test_fluid_simulation_model(model, test_loader, device=None):
     metrics_dict['total_prediction_time'] = total_time
     metrics_dict['average_time_per_batch'] = total_time / len(test_loader)
     metrics_dict['average_time_per_frame'] = total_time / total_frames
-    
-    print(f"\nTotal Prediction Time: {total_time:.4f} seconds")
-    print(f"Average Time per Batch: {metrics_dict['average_time_per_batch']:.4f} seconds")
-    print(f"Average Time per Frame: {metrics_dict['average_time_per_frame']:.4f} seconds")
-    print(f"Total Frames Processed: {total_frames}")
-    
+        
     return metrics_dict, all_predictions, all_targets
 
 def compute_velocity_magnitude(velocity_field):
