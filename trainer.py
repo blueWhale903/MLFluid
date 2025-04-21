@@ -261,6 +261,7 @@ def train_fluid_simulation_model(
         
         # Learning rate scheduling
         scheduler.step()
+        scheduler.step()
         
         # Epoch progress summary
         if verbose:
