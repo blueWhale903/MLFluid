@@ -1,6 +1,6 @@
 # Fluid Simulation Using Machine Learning
 
--![fluid](https://github.com/user-attachments/assets/eedfa125-e967-47ed-ac3d-01f60288f445)
+<img width="1900" height="900" alt="compare3d_vol" src="https://github.com/user-attachments/assets/a0867864-3b1b-42ec-97d8-96e0009988f2" />
 
 ## Project overview
 This project leverages deep learning techniques to predict the velocity field of a fluid simulation over time. The goal is to enhance traditional computational fluid dynamics (CFD) simulations using machine learning, improving speed and efficiency while maintaining accuracy.
